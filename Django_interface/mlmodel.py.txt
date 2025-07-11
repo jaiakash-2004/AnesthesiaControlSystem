@@ -1,0 +1,96 @@
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
+from keras.models import Sequential
+from keras.layers import LSTM, Dense, Dropout, Bidirectional
+from keras.callbacks import EarlyStopping, LearningRateScheduler
+import tensorflow as tf
+
+# Load dataset
+df = pd.read_csv('synthetic_anesthesia_data_20_patients.csv')
+
+# Feature engineering: Adjust according to actual column names in the dataset
+features = df[['spo2', 'heartbeat', 'respiration_rate', 'temperature']].values
+target = df['dosage'].values  # Assuming 'dosage' is the target column
+
+# Normalize the features
+scaler = MinMaxScaler()
+features_scaled = scaler.fit_transform(features)
+
+# Reshape data for LSTM
+X = features_scaled
+y = target
+
+# Split data into training and testing
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Reshape data to fit LSTM (samples, time steps, features)
+X_train = X_train.reshape((X_train.shape[0], 1, X_train.shape[1]))
+X_test = X_test.reshape((X_test.shape[0], 1, X_test.shape[1]))
+
+# Build the LSTM model
+model = Sequential()
+model.add(Bidirectional(LSTM(units=100, return_sequences=True), input_shape=(X_train.shape[1], X_train.shape[2])))
+model.add(Dropout(0.3))
+model.add(LSTM(units=100))
+model.add(Dropout(0.3))
+model.add(Dense(units=50))
+model.add(Dense(units=1))  # Output layer
+
+# Compile the model with 'mae' as a metric
+model.compile(optimizer='Nadam', loss='mean_absolute_error', metrics=['mae'])
+
+# Early stopping to avoid overfitting
+early_stopping = EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)
+
+# Learning rate scheduler for better convergence
+def lr_schedule(epoch, lr):
+    if epoch % 10 == 0 and epoch > 0:
+        lr = lr * 0.9
+    return lr
+
+lr_scheduler = LearningRateScheduler(lr_schedule)
+
+# Train the model
+history = model.fit(X_train, y_train, epochs=100, batch_size=16, validation_data=(X_test, y_test), 
+                    callbacks=[early_stopping, lr_scheduler])
+
+# Plotting the learning curves
+plt.figure(figsize=(12, 6))
+
+# Training & validation loss
+plt.subplot(1, 2, 1)
+plt.plot(history.history['loss'], label='Train Loss')
+plt.plot(history.history['val_loss'], label='Val Loss')
+plt.title('Training & Validation Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+
+# Training & validation MAE
+plt.subplot(1, 2, 2)
+plt.plot(history.history['mae'], label='Train MAE')
+plt.plot(history.history['val_mae'], label='Val MAE')
+plt.title('Training & Validation MAE')
+plt.xlabel('Epochs')
+plt.ylabel('MAE')
+plt.legend()
+
+plt.show()
+
+# Evaluate the model on test data
+test_loss, test_mae = model.evaluate(X_test, y_test)
+print(f'Test Loss: {test_loss}, Test MAE: {test_mae}')
+
+# Predict on test data
+predictions = model.predict(X_test)
+
+# Calculate Mean Absolute Error
+mae = np.mean(np.abs(predictions - y_test))
+print(f'Mean Absolute Error: {mae}')
+
+# Print predicted vs actual for a few samples
+for i in range(10):
+    print(f"Predicted: {predictions[i][0]}, Actual: {y_test[i]}")

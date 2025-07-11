@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dosage Control</title>
+</head>
+<body>
+    <h1>Dosage Control for {{ patient.name }}</h1>
+    <p>Age: {{ patient.age }}</p>
+    <p>Weight: {{ patient.weight }} kg</p>
+    <p>Height: {{ patient.height }} cm</p>
+
+    <form method="POST">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Log Dosage</button>
+    </form>
+</body>
+</html>

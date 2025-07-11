@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Monitoring</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Chart.js for graphs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        .card {
+            margin-bottom: 20px;
+        }
+        .btn {
+            margin-right: 10px;
+        }
+        .graph-container {
+            height: 200px;
+            margin-bottom: 15px;
+        }
+        .top-stats {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .top-stats .stat-item {
+            display: inline-block;
+            margin-right: 30px;
+            text-align: center;
+        }
+        .top-stats .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            display: block;
+        }
+        .top-stats .stat-label {
+            font-size: 14px;
+            color: #6c757d;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 300px;
+            text-align: center;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/">Patient Monitoring System</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Patient Monitoring</h1>
+        
+        <!-- Top Stats Section -->
+        <div class="top-stats">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="stat-item">
+                        <span class="stat-value" id="alarmsValue">--</span>
+                        <span class="stat-label">Alarm Status</span>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-item">
+                        <span class="stat-value" id="inSEVValue">--</span>
+                        <span class="stat-label">Sevoflurane (inSEV)</span>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-item">
+                        <span class="stat-value" id="inO2Value">--</span>
+                        <span class="stat-label">Oxygen (inO2)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Surgery Controls</h5>
+                    </div>
+                    <div class="card-body">
+                        <button id="startSurgeryBtn" class="btn btn-success">Start Surgery</button>
+                        <button id="stopSurgeryBtn" class="btn btn-danger" disabled>Stop Surgery</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Vital Signs Graphs -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Heart Rate</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="graph-container">
+                            <canvas id="heartRateChart"></canvas>
+                        </div>
+                        <div class="current-value">
+                            <strong>Current:</strong> <span id="heartRate">--</span> bpm
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>SpO2</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="graph-container">
+                            <canvas id="spo2Chart"></canvas>
+                        </div>
+                        <div class="current-value">
+                            <strong>Current:</strong> <span id="spo2">--</span> %
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>CO2</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="graph-container">
+                            <canvas id="co2Chart"></canvas>
+                        </div>
+                        <div class="current-value">
+                            <strong>Current:</strong> <span id="co2">--</span> mmHg
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Respiration Rate</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="graph-container">
+                            <canvas id="respirationRateChart"></canvas>
+                        </div>
+                        <div class="current-value">
+                            <strong>Current:</strong> <span id="respirationRate">--</span> bpm
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {% if error %}
+        <div class="alert alert-danger mt-4">
+            {{ error }}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Surgery Completed Modal -->
+    <div id="surgeryCompletedModal" class="modal">
+        <div class="modal-content">
+            <h4>Success</h4>
+            <p>Surgery completed</p>
+            <button id="modalOkBtn" class="btn btn-primary">OK</button>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let monitoringInterval;
+        const updateInterval = 2000; // Update every 2 seconds
+        
+        // Initialize charts
+        const timeLabels = Array(20).fill('');
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: false
+                },
+                x: {
+                    display: false
+                }
+            },
+            animation: {
+                duration: 0
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        };
+        
+        // Heart Rate Chart
+        const heartRateChart = new Chart(
+            document.getElementById('heartRateChart'),
+            {
+                type: 'line',
+                data: {
+                    labels: timeLabels,
+                    datasets: [{
+                        data: Array(20).fill(null),
+                        borderColor: 'rgb(255, 99, 132)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    ...chartOptions,
+                    scales: {
+                        ...chartOptions.scales,
+                        y: {
+                            ...chartOptions.scales.y,
+                            suggestedMin: 40,
+                            suggestedMax: 140
+                        }
+                    }
+                }
+            }
+        );
+        
+        // SpO2 Chart
+        const spo2Chart = new Chart(
+            document.getElementById('spo2Chart'),
+            {
+                type: 'line',
+                data: {
+                    labels: timeLabels,
+                    datasets: [{
+                        data: Array(20).fill(null),
+                        borderColor: 'rgb(54, 162, 235)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    ...chartOptions,
+                    scales: {
+                        ...chartOptions.scales,
+                        y: {
+                            ...chartOptions.scales.y,
+                            suggestedMin: 90,
+                            suggestedMax: 100
+                        }
+                    }
+                }
+            }
+        );
+        
+        // CO2 Chart
+        const co2Chart = new Chart(
+            document.getElementById('co2Chart'),
+            {
+                type: 'line',
+                data: {
+                    labels: timeLabels,
+                    datasets: [{
+                        data: Array(20).fill(null),
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    ...chartOptions,
+                    scales: {
+                        ...chartOptions.scales,
+                        y: {
+                            ...chartOptions.scales.y,
+                            suggestedMin: 30,
+                            suggestedMax: 50
+                        }
+                    }
+                }
+            }
+        );
+        
+        // Respiration Rate Chart
+        const respirationRateChart = new Chart(
+            document.getElementById('respirationRateChart'),
+            {
+                type: 'line',
+                data: {
+                    labels: timeLabels,
+                    datasets: [{
+                        data: Array(20).fill(null),
+                        borderColor: 'rgb(153, 102, 255)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    ...chartOptions,
+                    scales: {
+                        ...chartOptions.scales,
+                        y: {
+                            ...chartOptions.scales.y,
+                            suggestedMin: 8,
+                            suggestedMax: 25
+                        }
+                    }
+                }
+            }
+        );
+        
+        // Function to get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        const csrftoken = getCookie('csrftoken');
+        
+        // Add data to chart
+        function addDataToChart(chart, newData) {
+            chart.data.datasets[0].data.push(newData);
+            chart.data.datasets[0].data.shift();
+            chart.update();
+        }
+        
+        // Function to update the monitoring data
+        function updateMonitoringData() {
+            fetch('/get_latest_predictions/')
+                .then(response => response.json())
+                .then(data => {
+                    // Update vital signs current values
+                    const heartRateValue = data.heart_rate || '--';
+                    const spo2Value = data.spo2 || '--';
+                    const co2Value = data.co2 || '--';
+                    const respirationRateValue = data.respiration_rate || '--';
+                    
+                    document.getElementById('heartRate').textContent = heartRateValue;
+                    document.getElementById('spo2').textContent = spo2Value;
+                    document.getElementById('co2').textContent = co2Value;
+                    document.getElementById('respirationRate').textContent = respirationRateValue;
+                    
+                    // Update charts
+                    if (heartRateValue !== '--') addDataToChart(heartRateChart, heartRateValue);
+                    if (spo2Value !== '--') addDataToChart(spo2Chart, spo2Value);
+                    if (co2Value !== '--') addDataToChart(co2Chart, co2Value);
+                    if (respirationRateValue !== '--') addDataToChart(respirationRateChart, respirationRateValue);
+                    
+                    // Update top stats
+                    document.getElementById('alarmsValue').textContent = 
+                        data.alarms ? (data.alarms.length > 0 ? 'ACTIVE' : 'NONE') : '--';
+                    
+                    if (data.rnn_predictions) {
+                        const inSEV = data.rnn_predictions.inSEV;
+                        const inO2 = data.rnn_predictions.inO2;
+                        
+                        document.getElementById('inSEVValue').textContent = 
+                            inSEV !== undefined ? inSEV.toFixed(2) : '--';
+                        document.getElementById('inO2Value').textContent = 
+                            inO2 !== undefined ? inO2.toFixed(2) : '--';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching monitoring data:', error);
+                });
+        }
+        
+        // Modal handling
+        const modal = document.getElementById("surgeryCompletedModal");
+        document.getElementById("modalOkBtn").addEventListener("click", function() {
+            modal.style.display = "none";
+            window.location.href = "{% url 'login_success' %}";
+        });
+        
+        // Start surgery button click event
+        document.getElementById('startSurgeryBtn').addEventListener('click', function() {
+            fetch('/start_surgery/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data.status);
+                
+                // Start the monitoring interval
+                monitoringInterval = setInterval(updateMonitoringData, updateInterval);
+                
+                // Toggle button states
+                document.getElementById('startSurgeryBtn').disabled = true;
+                document.getElementById('stopSurgeryBtn').disabled = false;
+            })
+            .catch(error => {
+                console.error('Error starting surgery:', error);
+            });
+        });
+        
+        // Stop surgery button click event
+        document.getElementById('stopSurgeryBtn').addEventListener('click', function() {
+            fetch('/stop_surgery/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data.status);
+                
+                // Clear the monitoring interval
+                clearInterval(monitoringInterval);
+                
+                // Toggle button states
+                document.getElementById('startSurgeryBtn').disabled = false;
+                document.getElementById('stopSurgeryBtn').disabled = true;
+                
+                // Show surgery completed modal
+                modal.style.display = "block";
+            })
+            .catch(error => {
+                console.error('Error stopping surgery:', error);
+            });
+        });
+    </script>
+</body>
+</html>
